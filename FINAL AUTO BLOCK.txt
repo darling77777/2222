@@ -1,29 +1,28 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+bloocal ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local lp = Players.LocalPlayer
 local PlayerGui = lp:WaitForChild("PlayerGui")
-local Humanoid, Animator
-local StarterGui  = game:GetService("StarterGui")
+local StarterGui = game:GetService("StarterGui")
 local TestService = game:GetService("TestService")
+local Debris = game:GetService("Debris")
 
--- Place in ReplicatedFirst (LocalScript
+local Humanoid, Animator
 
--- Continue script 
-
+-- Rayfield UI
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local Window = Rayfield:CreateWindow({
-Name = "Auto Block",
-LoadingTitle = "Auto Block Script",
-LoadingSubtitle = "short script",
-ConfigurationSaving = {
-Enabled = true,
-FolderName = "AutoBlock",
-FileName = "Settings"
-},
-Discord = {Enabled = false},
-KeySystem = false
+    Name = "Auto Block",
+    LoadingTitle = "Auto Block Script",
+    LoadingSubtitle = "short script",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "AutoBlock",
+        FileName = "Settings"
+    },
+    Discord = { Enabled = false },
+    KeySystem = false
 })
 
 local AutoBlockTab = Window:CreateTab("Auto Block", 4483362458)
@@ -34,11 +33,8 @@ local AutoPunchTab = Window:CreateTab("Auto Punch", 4483362458)
 local CustomAnimationsTab = Window:CreateTab("Custom Animations", 4483362458)
 local MiscTab = Window:CreateTab("Misc", 4483362458)
 
+-- ===== IDs =====
 
-
--- IDs.
-
--- Audio-based Auto Block IDs
 local autoBlockTriggerSounds = {
     ["102228729296384"] = true,
     ["140242176732868"] = true,
@@ -66,13 +62,7 @@ local autoBlockTriggerSounds = {
     ["12222216"] = true,
 }
 
--- Prevent repeated aim triggers for the same animation track
-local lastAimTrigger = {}   -- keys = AnimationTrack, value = timestamp when we triggered
-local AIM_WINDOW = 0.5      -- how long to aim (seconds)
-local AIM_COOLDOWN = 0.6    -- don't retrigger within this many seconds
-
 local autoBlockTriggerAnims = {
-    -- Jason
     "82113744478546",
     "140125695162370",
     "109845134167647",
@@ -96,15 +86,11 @@ local autoBlockTriggerAnims = {
     "121043188582126",
     "106847695270773",
     "125403313786645",
-
-    -- JohnDoe
     "105458270463374",
     "93069721274110",
     "81299297965542",
     "88970503168421",
     "138938529389204",
-
-    -- Noli (VoidRush / Stab)
     "137642639873297",
     "132221505301108",
     "94634594529334",
@@ -119,8 +105,6 @@ local autoBlockTriggerAnims = {
     "77375846492436",
     "93366464803829",
     "91509234639766",
-
-    -- Slasher
     "119062842291223",
     "98855072995209",
     "103966608894027",
@@ -139,13 +123,9 @@ local autoBlockTriggerAnims = {
     "131642454238375",
     "122940209716028",
     "109172760478577",
-
-    -- Nosferatu
     "124269076578545",
     "88451353906104",
     "91628732643385",
-
-    -- 1x1x1x1
     "100592913030351",
     "95313892538462",
     "121293883585738",
@@ -168,8 +148,6 @@ local autoBlockTriggerAnims = {
     "70948173568515",
     "124705663396411",
     "112598064360414",
-
-    -- Brimstone / Erlking / Sancho / Sukuna / Sixer / Horse / Fog / Skinwalker
     "129260077168659",
     "114375669802778",
     "80208162053146",
@@ -186,7 +164,6 @@ local autoBlockTriggerAnims = {
     "88567465014619",
     "127502467840751",
     "116618003477002",
-}
 }
 
 -- State Variables
