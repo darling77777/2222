@@ -7,14 +7,14 @@ local LocalPlayer = Players.LocalPlayer
 
 -- ===== WindUI =====
 local WindUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
+
 local Window = WindUI:CreateWindow({
    Name = "DoggiSaken",
    LoadingTitle = "Loading...",
    LoadingSubtitle = "mTy stupid",
    ToggleUIKeybind = "K",
-   KeySystem = false,
-    }
-})
+   KeySystem = false
+}))
 local Main = Window:CreateTab("Main")
 local ESPTab = Window:CreateTab("ESP")
 local Combat = Window:CreateTab("Combat")
