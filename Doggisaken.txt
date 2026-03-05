@@ -14,7 +14,7 @@ local Window = WindUI:CreateWindow({
    LoadingSubtitle = "mTy stupid",
    ToggleUIKeybind = "K",
    KeySystem = false
-}))
+})
 local Main = Window:CreateTab("Main")
 local ESPTab = Window:CreateTab("ESP")
 local Combat = Window:CreateTab("Combat")
