@@ -1,0 +1,2232 @@
+-- ===== Services =====
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+
+-- ===== Rayfield =====
+local WindUI =
+loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/
+download/main.lua"))()
+
+local Window = WindUI:CreateWindow({
+   Name = "DoggiSaken",
+   LoadingTitle = "Loading...",
+   LoadingSubtitle = "mTy stupid",
+   ToggleUIKeybind = "K",
+   KeySystem = false,
+   ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "mTy", -- tên folder
+        FileName = "DoggiSaken"  -- tên file
+    }
+})
+
+local Main = Window:CreateTab("Main")
+local ESPTab = Window:CreateTab("ESP")
+local Combat = Window:CreateTab("Combat")
+local Support = Window:CreateTab("Support")
+
+----------------------------------------------------
+local autoGenEnabled = false
+local autoGenCooldown = 4
+local infStaminaEnabled = false
+local visualStaminaEnabled = false
+
+----------------------------------------------------
+-- ✅ GENERATOR UI
+----------------------------------------------------
+Main:CreateSection("Generator")
+
+Main:CreateToggle({
+    Name = "Auto Generator",
+    CurrentValue = false,
+    Callback = function(v)
+        autoGenEnabled = v
+    end
+})
+
+Main:CreateSlider({
+    Name = "Cooldown",
+    Range = {1, 15},
+    Increment = 0.5,
+    Suffix = "s",
+    CurrentValue = autoGenCooldown,
+    Callback = function(v)
+        autoGenCooldown = v
+    end
+})
+
+----------------------------------------------------
+-- ✅ PLAYER UI
+----------------------------------------------------
+Main:CreateSection("Player")
+
+----------------------------------------------------
+-- ✅ STAMINA MODULE
+----------------------------------------------------
+local SprintingModule = require(
+    ReplicatedStorage
+        :WaitForChild("Systems")
+        :WaitForChild("Character")
+        :WaitForChild("Game")
+        :WaitForChild("Sprinting")
+)
+
+local defaultLoss = SprintingModule.StaminaLoss
+local defaultGain = SprintingModule.StaminaGain
+
+local function applyStamina()
+    if infStaminaEnabled then
+        SprintingModule.StaminaLoss = 0
+        SprintingModule.StaminaGain = 9999
+    else
+        SprintingModule.StaminaLoss = defaultLoss
+        SprintingModule.StaminaGain = defaultGain
+    end
+end
+
+Main:CreateToggle({
+    Name = "Inf Stamina",
+    CurrentValue = false,
+    Callback = function(v)
+        infStaminaEnabled = v
+        applyStamina()
+    end
+})
+
+----------------------------------------------------
+-- ✅ VISUAL STAMINA (LOGIC CỦA BẠN)
+----------------------------------------------------
+local connection
+
+local function getModule()
+    local sprinting = ReplicatedStorage
+        :WaitForChild("Systems")
+        :WaitForChild("Character")
+        :WaitForChild("Game")
+        :WaitForChild("Sprinting")
+
+    return require(sprinting)
+end
+
+local function createDisplay()
+    local character = LocalPlayer.Character
+    if not character then return nil end
+
+    local head = character:WaitForChild("Head")
+
+    pcall(function()
+        head:FindFirstChild("StaminaDisplay"):Destroy()
+    end)
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "StaminaDisplay"
+    billboard.Size = UDim2.new(3, 0, 1, 0)
+    billboard.StudsOffset = Vector3.new(0, 3.5, 0)
+    billboard.AlwaysOnTop = true
+    billboard.LightInfluence = 0
+    billboard.Enabled = visualStaminaEnabled
+    billboard.Parent = head
+
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextSize = 12 -- ✅ nhỏ
+    textLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    textLabel.TextStrokeTransparency = 0.4
+    textLabel.Text = "Stamina"
+    textLabel.Parent = billboard
+
+    return textLabel
+end
+
+local function updateDisplay(textLabel)
+    local module = getModule()
+
+    local current = math.floor(module.Stamina or 0)
+    local maxStam = module.MaxStamina or 100
+
+    textLabel.Text = "Stamina " .. current .. "/" .. maxStam
+end
+
+local function setupCharacter()
+    local textLabel = createDisplay()
+    if not textLabel then return end
+
+    if connection then connection:Disconnect() end
+
+    connection = RunService.RenderStepped:Connect(function()
+        if visualStaminaEnabled then
+            pcall(updateDisplay, textLabel)
+        end
+    end)
+end
+
+Main:CreateToggle({
+    Name = "Visual Stamina",
+    CurrentValue = false,
+    Callback = function(v)
+        visualStaminaEnabled = v
+
+        local char = LocalPlayer.Character
+        if char then
+            local head = char:FindFirstChild("Head")
+            if head and head:FindFirstChild("StaminaDisplay") then
+                head.StaminaDisplay.Enabled = v
+            end
+        end
+    end
+})
+
+applyStamina()
+
+if LocalPlayer.Character then
+    task.wait(1)
+    setupCharacter()
+end
+
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(2)
+    applyStamina()
+    setupCharacter()
+end)
+
+----------------------------------------------------
+-- ✅ AUTO GENERATOR
+----------------------------------------------------
+task.spawn(function()
+    local lastFire = 0
+
+    while task.wait(0.1) do
+        if autoGenEnabled and tick() - lastFire >= autoGenCooldown then
+            pcall(function()
+                local mapFolder = Workspace:FindFirstChild("Map")
+                    and Workspace.Map:FindFirstChild("Ingame")
+                    and Workspace.Map.Ingame:FindFirstChild("Map")
+
+                if not mapFolder then return end
+
+                for _, gen in pairs(mapFolder:GetChildren()) do
+                    if gen.Name == "Generator"
+                        and gen:FindFirstChild("Remotes")
+                        and gen.Remotes:FindFirstChild("RE") then
+
+                        gen.Remotes.RE:FireServer()
+                    end
+                end
+            end)
+
+            lastFire = tick()
+        end
+    end
+end)
+
+----------------------------------------------------
+-- ✅ TEXT ESP (LOGIC CỦA BẠN)
+----------------------------------------------------
+local ESPState = {
+    Killers = false,
+    Survivors = false,
+    Generators = false,
+    Items = false
+}
+
+ESPTab:CreateSection("Text ESP")
+
+ESPTab:CreateToggle({ Name = "Killers ESP", Callback = function(v) ESPState.Killers = v end })
+ESPTab:CreateToggle({ Name = "Survivors ESP", Callback = function(v) ESPState.Survivors = v end })
+ESPTab:CreateToggle({ Name = "Generators ESP", Callback = function(v) ESPState.Generators = v end })
+ESPTab:CreateToggle({ Name = "Items ESP", Callback = function(v) ESPState.Items = v end })
+
+local killersFolder = Workspace:WaitForChild("Players"):WaitForChild("Killers")
+local survivorsFolder = Workspace:WaitForChild("Players"):WaitForChild("Survivors")
+local itemsFolder = Workspace:FindFirstChild("Items")
+
+local function getMapFolder()
+    local map = Workspace:FindFirstChild("Map")
+    if map and map:FindFirstChild("Ingame") then
+        return map.Ingame:FindFirstChild("Map")
+    end
+end
+
+local function createESP(obj, color)
+    if obj:FindFirstChild("ESP_Tag") then return end
+
+    local adornee = obj:FindFirstChild("Head")
+        or obj:FindFirstChild("HumanoidRootPart")
+        or obj:FindFirstChildWhichIsA("BasePart")
+
+    if not adornee then return end
+
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "ESP_Tag"
+    bb.Adornee = adornee
+    bb.Size = UDim2.new(0, 90, 0, 18)
+    bb.StudsOffset = Vector3.new(0, 2, 0)
+    bb.AlwaysOnTop = true
+    bb.Enabled = false
+    bb.Parent = obj
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.fromScale(1, 1)
+    label.BackgroundTransparency = 1
+    label.TextSize = 9
+    label.Font = Enum.Font.GothamBold
+    label.TextStrokeTransparency = 0.5
+    label.TextColor3 = color
+    label.Text = obj.Name
+    label.Parent = bb
+end
+
+task.spawn(function()
+    while task.wait(1.5) do
+
+        if ESPState.Killers then
+            for _, k in pairs(killersFolder:GetChildren()) do
+                if k:IsA("Model") then
+                    createESP(k, Color3.fromRGB(255, 0, 0))
+                end
+            end
+        end
+
+        if ESPState.Survivors then
+            for _, s in pairs(survivorsFolder:GetChildren()) do
+                if s:IsA("Model") then
+                    createESP(s, Color3.fromRGB(0, 170, 255))
+                end
+            end
+        end
+
+        if ESPState.Generators then
+            local mapFolder = getMapFolder()
+            if mapFolder then
+                for _, gen in pairs(mapFolder:GetChildren()) do
+                    if gen.Name == "Generator" then
+                        createESP(gen, Color3.fromRGB(170, 0, 255))
+                    end
+                end
+            end
+        end
+
+        if ESPState.Items and itemsFolder then
+            for _, item in pairs(itemsFolder:GetChildren()) do
+                createESP(item, Color3.fromRGB(0, 170, 255))
+            end
+        end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+
+    for _, obj in pairs(killersFolder:GetChildren()) do
+        local bb = obj:FindFirstChild("ESP_Tag")
+        if bb then bb.Enabled = ESPState.Killers end
+    end
+
+    for _, obj in pairs(survivorsFolder:GetChildren()) do
+        local bb = obj:FindFirstChild("ESP_Tag")
+        if bb then bb.Enabled = ESPState.Survivors end
+    end
+
+    local mapFolder = getMapFolder()
+    if mapFolder then
+        for _, gen in pairs(mapFolder:GetChildren()) do
+            local bb = gen:FindFirstChild("ESP_Tag")
+            if bb then bb.Enabled = ESPState.Generators end
+        end
+    end
+
+    if itemsFolder then
+        for _, item in pairs(itemsFolder:GetChildren()) do
+            local bb = item:FindFirstChild("ESP_Tag")
+            if bb then bb.Enabled = ESPState.Items end
+        end
+    end
+
+end)
+
+-------------------------------------------------------
+-- ✅ SERVICES
+----------------------------------------------------
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+
+----------------------------------------------------
+-- ✅ GLOBAL STATES (GIỐNG GỐC)
+----------------------------------------------------
+getgenv().PizzaAimEnabled = false
+getgenv().PizzaAimDistance = 100
+getgenv().TargetMode = false
+getgenv().SelectedTarget = nil
+
+----------------------------------------------------
+-- ✅ UI (Combat Tab)
+----------------------------------------------------
+Combat:CreateSection("Pizza Aimbot")
+
+Combat:CreateToggle({
+    Name = "Pizza Aim",
+    CurrentValue = false,
+    Callback = function(v)
+        getgenv().PizzaAimEnabled = v
+    end
+})
+
+Combat:CreateInput({
+    Name = "Aim Distance",
+    PlaceholderText = "Distance...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(t)
+        local n = tonumber(t)
+        if n then
+            getgenv().PizzaAimDistance = n
+        end
+    end
+})
+
+Combat:CreateToggle({
+    Name = "Target",
+    CurrentValue = false,
+    Callback = function(v)
+        getgenv().TargetMode = v
+        getgenv().SelectedTarget = nil
+    end
+})
+
+----------------------------------------------------
+-- ✅ PLAYER LIST (USER)
+----------------------------------------------------
+local dropdown
+local currentOptions = {}
+
+local function buildPlayerList()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            table.insert(list, plr.Name)
+        end
+    end
+    return list
+end
+
+local function refreshTargets()
+    local newList = buildPlayerList()
+    currentOptions = newList
+
+    if dropdown then
+        dropdown:Refresh(newList, true)
+    end
+end
+
+dropdown = Combat:CreateDropdown({
+    Name = "Select Player",
+    Options = currentOptions,
+    CurrentOption = nil,
+    Callback = function(opt)
+        local name = typeof(opt) == "table" and opt[1] or opt
+        getgenv().SelectedTarget = Players:FindFirstChild(name)
+    end
+})
+
+Combat:CreateButton({
+    Name = "Refresh Player List",
+    Callback = refreshTargets
+})
+
+Players.PlayerAdded:Connect(refreshTargets)
+Players.PlayerRemoving:Connect(refreshTargets)
+
+task.delay(1, refreshTargets)
+
+----------------------------------------------------
+-- ✅ ANIMATION CHECK (GIỮ NGUYÊN)
+----------------------------------------------------
+local PizzaAnimation = {
+    ["114155003741146"] = true,
+    ["12662553001"] = true,
+    ["104033348426533"] = true
+}
+
+local function getHumanoid()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChildWhichIsA("Humanoid")
+end
+
+local function isLocalPlayerPlayingAnimation()
+    local hum = getHumanoid()
+    local animator = hum and hum:FindFirstChildOfClass("Animator")
+    if not animator then return false end
+
+    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+        local id = track.Animation and track.Animation.AnimationId
+        id = id and id:match("%d+")
+
+        if id and PizzaAnimation[id] then
+            return true
+        end
+    end
+
+    return false
+end
+
+----------------------------------------------------
+-- ✅ LOGIC WEAKEST (GIỮ NGUYÊN)
+----------------------------------------------------
+local function getWeakestSurvivor()
+    local folder = Workspace:WaitForChild("Players"):WaitForChild("Survivors")
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+
+    local weakest, lowest = nil, math.huge
+
+    for _, m in ipairs(folder:GetChildren()) do
+        if m:IsA("Model") and m ~= myChar then
+            local h = m:FindFirstChildWhichIsA("Humanoid")
+            local r = m:FindFirstChild("HumanoidRootPart")
+
+            if h and r and h.Health > 0 then
+                local d = (r.Position - myRoot.Position).Magnitude
+                if d <= getgenv().PizzaAimDistance and h.Health < lowest then
+                    lowest = h.Health
+                    weakest = m
+                end
+            end
+        end
+    end
+
+    return weakest
+end
+
+----------------------------------------------------
+-- ✅ TARGET PLAYER → MODEL
+----------------------------------------------------
+local function getSelectedCharacter()
+    local plr = getgenv().SelectedTarget
+    local char = plr and plr.Character
+    local hum = char and char:FindFirstChildWhichIsA("Humanoid")
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+
+    if char and hum and root and hum.Health > 0 then
+        return char
+    end
+end
+
+----------------------------------------------------
+-- ✅ AIM LOOP (FLOW GỐC 100%)
+----------------------------------------------------
+local currentTarget, wasPlaying, autoRotateOff = nil, false, false
+
+RunService.RenderStepped:Connect(function()
+
+    if not getgenv().PizzaAimEnabled then
+        currentTarget, wasPlaying = nil, false
+
+        if autoRotateOff then
+            local h = getHumanoid()
+            if h then h.AutoRotate = true end
+            autoRotateOff = false
+        end
+        return
+    end
+
+    local hum = getHumanoid()
+    local root = hum and hum.Parent:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return end
+
+    local playing = isLocalPlayerPlayingAnimation()
+
+    -- ✅ GIỮ FLOW GỐC
+    if playing and not currentTarget then
+
+        if getgenv().TargetMode then
+            currentTarget = getSelectedCharacter()
+        else
+            currentTarget = getWeakestSurvivor()
+        end
+    end
+
+    if not playing and wasPlaying then
+        currentTarget = nil
+        hum.AutoRotate = true
+        autoRotateOff = false
+    end
+
+    wasPlaying = playing
+
+    if playing and currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
+        local hrp = currentTarget.HumanoidRootPart
+
+        hum.AutoRotate = false
+        autoRotateOff = true
+
+        local look = Vector3.new(hrp.Position.X, root.Position.Y, hrp.Position.Z)
+        root.CFrame = root.CFrame:Lerp(CFrame.lookAt(root.Position, look), 0.95)
+    end
+end)
+
+----------------------------------------------------
+-- ✅ RESPAWN SAFE
+----------------------------------------------------
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    currentTarget = nil
+    wasPlaying = false
+end)
+
+----------------------------------------------------
+-- ✅ AUTO SLASH (NO NOTIFICATION)
+----------------------------------------------------
+Combat:CreateSection("Auto Slash")
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LP = Players.LocalPlayer
+
+local Remote = ReplicatedStorage
+    :WaitForChild("Modules")
+    :WaitForChild("Network")
+    :WaitForChild("RemoteEvent")
+
+local autoSlash = false
+local autoAim = false
+local rage = 12
+
+local slashCooldown = 30
+local lastSlash = 1
+
+local aimTargets = {
+    "Slasher","c00lkidd","JohnDoe","1x1x1x1",
+    "Noli","Guest 666","Sixer","Nosferatu"
+}
+
+local humanoid, hrp
+
+local function setupChar(char)
+    humanoid = char:WaitForChild("Humanoid")
+    hrp = char:WaitForChild("HumanoidRootPart")
+end
+
+if LP.Character then setupChar(LP.Character) end
+LP.CharacterAdded:Connect(setupChar)
+
+local function getTarget()
+    if not hrp then return end
+    for _,plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP and plr.Character then
+            local c = plr.Character
+            local h = c:FindFirstChild("HumanoidRootPart")
+            if h and (h.Position - hrp.Position).Magnitude <= rage then
+                for _,n in ipairs(aimTargets) do
+                    if c.Name:lower():find(n:lower()) then
+                        return h
+                    end
+                end
+            end
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if not humanoid or not hrp then return end
+
+    local target = getTarget()
+    if not target then return end
+
+    local now = tick()
+    local slashReady = (now - lastSlash) >= slashCooldown
+
+    if autoAim and slashReady then
+        local dir = (target.Position - hrp.Position).Unit
+        local yaw = math.atan2(-dir.X, -dir.Z)
+        hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0,yaw,0)
+    end
+
+    if autoSlash and slashReady then
+        lastSlash = now
+
+        pcall(function()
+            Remote:FireServer(
+                "UseActorAbility",
+                { buffer.fromstring("\3\5\0\0\0Slash") }
+            )
+        end)
+    end
+end)
+
+----------------------------------------------------
+-- ✅ UI
+----------------------------------------------------
+Combat:CreateToggle({
+    Name = "Auto Slash",
+    CurrentValue = false,
+    Callback = function(v)
+        autoSlash = v
+    end
+})
+
+Combat:CreateToggle({
+    Name = "Auto Aim",
+    CurrentValue = false,
+    Callback = function(v)
+        autoAim = v
+    end
+})
+
+Combat:CreateInput({
+    Name = "Rage",
+    PlaceholderText = "12",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(t)
+        local n = tonumber(t)
+        if n then rage = n end
+    end
+})
+
+----------------------------------------------------
+-- ✅ CHANCE AIM (LOGIC NGUYÊN BẢN)
+----------------------------------------------------
+Combat:CreateSection("Chance Aim")
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local LP = Players.LocalPlayer
+
+--------------------------------------------------
+local aimActive = false
+local aimPredictionValue = 2
+local aimDuration = 1.6
+local aimTargets = {"Slasher", "c00lkidd", "JohnDoe", "1x1x1x1", "Noli", "Guest 666", "Sixer", "Nosferatu"}
+local aimMovementThreshold = 0.5
+local playerHumanoid, playerHRP = nil, nil
+local lastTriggerTime = 0
+local aiming = false
+local originalWS, originalAutoRotate = nil, nil
+local prevFlintVisibleAim = false
+
+--------------------------------------------------
+local function configureCharacter(char)
+    playerHumanoid = char:FindFirstChild("Humanoid")
+    playerHRP = char:FindFirstChild("HumanoidRootPart")
+end
+
+if LP.Character then
+    configureCharacter(LP.Character)
+end
+LP.CharacterAdded:Connect(configureCharacter)
+
+--------------------------------------------------
+local function findValidTarget()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP and plr.Character then
+            local char = plr.Character
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                for _, targetName in ipairs(aimTargets) do
+                    if char.Name:lower():find(targetName:lower()) then
+                        return hrp
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+--------------------------------------------------
+local function predictPosition(targetHRP, studs)
+    if not targetHRP then return nil end
+    if targetHRP.Velocity.Magnitude > aimMovementThreshold then
+        return targetHRP.Position + (targetHRP.CFrame.LookVector * studs)
+    end
+    return targetHRP.Position
+end
+
+--------------------------------------------------
+local function isFlintlockVisible()
+    if not LP.Character then return false end
+    local flint = LP.Character:FindFirstChild("Flintlock", true)
+    if not flint then return false end
+    if not (flint:IsA("BasePart") or flint:IsA("MeshPart") or flint:IsA("UnionOperation")) then
+        flint = flint:FindFirstChildWhichIsA("BasePart", true)
+        if not flint then return false end
+    end
+    return flint.Transparency < 1
+end
+
+--------------------------------------------------
+RunService.RenderStepped:Connect(function()
+    if not aimActive or not playerHumanoid or not playerHRP then
+        if aiming then
+            aiming = false
+            if originalWS and originalAutoRotate ~= nil then
+                playerHumanoid.WalkSpeed = originalWS
+                playerHumanoid.AutoRotate = originalAutoRotate
+                originalWS, originalAutoRotate = nil, nil
+            end
+        end
+        return
+    end
+
+    local isVisible = isFlintlockVisible()
+
+    if not aiming and isVisible and not prevFlintVisibleAim then
+        lastTriggerTime = tick()
+        aiming = true
+        originalWS = playerHumanoid.WalkSpeed
+        originalAutoRotate = playerHumanoid.AutoRotate
+    end
+    prevFlintVisibleAim = isVisible
+
+    if aiming then
+        local elapsed = tick() - lastTriggerTime
+        local targetHRP = findValidTarget()
+
+        if not targetHRP
+        or (targetHRP.Position - playerHRP.Position).Magnitude < 6
+        or elapsed > aimDuration
+        or not isVisible then
+
+            aiming = false
+            if originalWS and originalAutoRotate ~= nil then
+                playerHumanoid.WalkSpeed = originalWS
+                playerHumanoid.AutoRotate = originalAutoRotate
+                originalWS, originalAutoRotate = nil, nil
+            end
+            return
+        end
+
+        playerHumanoid.AutoRotate = false
+        playerHRP.AssemblyAngularVelocity = Vector3.zero
+
+        local predicted = predictPosition(targetHRP, aimPredictionValue)
+        if predicted then
+            local dir = (predicted - playerHRP.Position).Unit
+            local yaw = math.atan2(-dir.X, -dir.Z)
+            playerHRP.CFrame =
+                CFrame.new(playerHRP.Position) *
+                CFrame.Angles(0, yaw, 0)
+        end
+    end
+end)
+
+----------------------------------------------------
+-- ✅ RAYFIELD UI (KHÔNG ẢNH HƯỞNG LOGIC)
+----------------------------------------------------
+Combat:CreateToggle({
+    Name = "Auto Aim",
+    CurrentValue = false,
+    Callback = function(v)
+        aimActive = v
+    end
+})
+
+Combat:CreateInput({
+    Name = "Aim Prediction",
+    PlaceholderText = "2",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(t)
+        local n = tonumber(t)
+        if n then
+            aimPredictionValue = n
+        end
+    end
+})
+
+----------------------------------------------------
+-- ✅ DUSEKKAR AIMBOT (LOGIC NGUYÊN BẢN)
+----------------------------------------------------
+Combat:CreateSection("Dusekkar Aimbot")
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local LP = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+--------------------------------------------------
+-- VARIABLES (GIỮ NGUYÊN)
+local aimEnabled = false
+local aimMode = "Survivor"
+local animIds = {"77894750279891", "118933622288262"}
+local killerNames = {"Slasher", "c00lkidd", "JohnDoe", "1x1x1x1", "Noli", "Sixer", "Nosferatu"}
+local healthPenalty = 1000
+
+local aiming = false
+local humanoid = nil
+local animConnection = nil
+
+--------------------------------------------------
+-- FIND TARGET (GIỮ NGUYÊN)
+local function getNearestTarget()
+    local char = LP.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+
+    local playersFolder = Workspace:FindFirstChild("Players")
+    if not playersFolder then return nil end
+
+    local survivors = playersFolder:FindFirstChild("Survivors")
+    local killers = playersFolder:FindFirstChild("Killers")
+
+    local best, bestScore = nil, math.huge
+
+    local function check(model, isKiller)
+        if not model:IsA("Model") or model == char then return end
+        if isKiller and not table.find(killerNames, model.Name) then return end
+        if not isKiller and table.find(killerNames, model.Name) then return end
+
+        local tHRP = model:FindFirstChild("HumanoidRootPart")
+        local hum = model:FindFirstChildOfClass("Humanoid")
+        if not tHRP or not hum or hum.Health <= 0 then return end
+
+        local dist = (tHRP.Position - hrp.Position).Magnitude^2
+        local score = dist + (healthPenalty * (hum.Health / math.max(hum.MaxHealth,1)))
+
+        if score < bestScore then
+            bestScore = score
+            best = tHRP
+        end
+    end
+
+    if aimMode == "Survivor" and survivors then
+        for _, m in ipairs(survivors:GetChildren()) do
+            check(m, false)
+        end
+    elseif aimMode == "Killer" and killers then
+        for _, m in ipairs(killers:GetChildren()) do
+            check(m, true)
+        end
+    elseif aimMode == "Random" then
+        if survivors then
+            for _, m in ipairs(survivors:GetChildren()) do check(m,false) end
+        end
+        if killers then
+            for _, m in ipairs(killers:GetChildren()) do check(m,true) end
+        end
+    end
+
+    return best
+end
+
+--------------------------------------------------
+-- CHARACTER SETUP (GIỮ NGUYÊN)
+local function setupCharacter(char)
+    humanoid = char:WaitForChild("Humanoid", 5)
+    if not humanoid then return end
+
+    if animConnection then
+        pcall(function() animConnection:Disconnect() end)
+    end
+
+    local animator = humanoid:FindFirstChildOfClass("Animator")
+    if animator then
+        animConnection = animator.AnimationPlayed:Connect(function(track)
+            local id = track.Animation.AnimationId:match("%d+")
+            if table.find(animIds, id) then
+                task.delay(0.5, function()
+                    if aimEnabled then aiming = true end
+                end)
+                track.Stopped:Once(function()
+                    aiming = false
+                end)
+            end
+        end)
+    end
+end
+
+if LP.Character then setupCharacter(LP.Character) end
+LP.CharacterAdded:Connect(function(c)
+    task.delay(1, setupCharacter, c)
+end)
+
+--------------------------------------------------
+-- AIM LOOP (GIỮ NGUYÊN)
+RunService.RenderStepped:Connect(function()
+    if not aimEnabled or not aiming or not humanoid then return end
+    local target = getNearestTarget()
+    if target then
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position)
+    end
+end)
+
+----------------------------------------------------
+-- ✅ RAYFIELD UI (KHÔNG ẢNH HƯỞNG LOGIC)
+----------------------------------------------------
+Combat:CreateToggle({
+    Name = "Aim",
+    CurrentValue = false,
+    Callback = function(v)
+        aimEnabled = v
+        aiming = false
+    end
+})
+
+Combat:CreateDropdown({
+    Name = "Aim Mode",
+    Options = {"Survivor", "Killer", "Random"},
+    CurrentOption = "Survivor",
+    Callback = function(opt)
+        local mode = typeof(opt) == "table" and opt[1] or opt
+        aimMode = mode
+    end
+})
+
+----------------------------------------------------
+-- ✅ AUTO M1 (COMBAT TAB VERSION)
+----------------------------------------------------
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local LP = Players.LocalPlayer
+local RemoteEvent = ReplicatedStorage
+    :WaitForChild("Modules")
+    :WaitForChild("Network")
+    :WaitForChild("RemoteEvent")
+
+local SurvivorsFolder = Workspace
+    :WaitForChild("Players")
+    :WaitForChild("Survivors")
+
+----------------------------------------------------
+-- VARIABLES (GIỮ NGUYÊN)
+----------------------------------------------------
+local M1Buffers = {
+    ["c00lkidd"]  = buffer.fromstring("\3\5\0\0\0Punch"),
+    ["Noli"]      = buffer.fromstring("\3\4\0\0\0Stab"),
+    ["Sixer"]     = buffer.fromstring("\3\13\0\0\0Carving Slash"),
+    ["Guest 666"] = buffer.fromstring("\3\13\0\0\0Carving Slash"),
+    ["Slasher"]   = buffer.fromstring("\3\5\0\0\0Slash"),
+    ["JohnDoe"]   = buffer.fromstring("\3\5\0\0\0Slash"),
+    ["1x1x1x1"]   = buffer.fromstring("\3\5\0\0\0Slash"),
+    ["Nosferatu"] = buffer.fromstring("\3\5\0\0\0Slash"),
+}
+
+local CurrentBuffer = buffer.fromstring("\3\5\0\0\0Slash")
+
+local SkillSet = {
+    ["VoidRush"] = true, ["Nova"] = true, ["CorruptEnergy"] = true,
+    ["Behead"] = true, ["GashingWound"] = true, ["MassInfection"] = true,
+    ["CorruptNature"] = true, ["WalkspeedOverride"] = true,
+    ["PizzaDelivery"] = true, ["UnstableEye"] = true,
+    ["Entanglement"] = true, ["DigitalFootprint"] = true,
+    ["404Error"] = true, ["RagingPace"] = true,
+    ["DemonicPursuit"] = true, ["InfernalCry"] = true, ["BloodRush"] = true,
+}
+
+----------------------------------------------------
+-- FACING CHECK
+----------------------------------------------------
+getgenv().FacingCheckEnabled = true
+local FACING_DOT = 0.0
+
+local function isFacing(killerRoot, targetRoot)
+    if not killerRoot or not targetRoot then return false end
+    local toTarget = (targetRoot.Position - killerRoot.Position).Unit
+    local forward  = killerRoot.CFrame.LookVector
+    return toTarget:Dot(forward) > FACING_DOT
+end
+
+----------------------------------------------------
+-- HELPERS
+----------------------------------------------------
+local function isKiller()
+    local char = LP.Character
+    if not char or not char.Parent then return false end
+    return char.Parent ~= SurvivorsFolder
+end
+
+local function updateBuffer()
+    local char = LP.Character
+    if char and isKiller() then
+        CurrentBuffer = M1Buffers[char.Name]
+            or buffer.fromstring("\3\5\0\0\0Slash")
+    end
+end
+
+LP.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    updateBuffer()
+end)
+
+getgenv().AutoM1 = false
+getgenv().AimEnabled = true
+getgenv().AimDistance = 15
+
+----------------------------------------------------
+-- ✅ FULL AntiM1Animations (BẠN YÊU CẦU)
+----------------------------------------------------
+local AntiM1Animations = {
+    ["rbxassetid://100926346851492"] = true,
+    ["rbxassetid://140671644163156"] = true,
+    ["rbxassetid://72182155407310"]  = true,
+    ["rbxassetid://72722244508749"]  = true,
+    ["rbxassetid://95802026624883"]  = true,
+    ["rbxassetid://88557287105521"]  = true,
+    ["rbxassetid://82605295530067"]  = true,
+    ["rbxassetid://96959123077498"]  = true,
+    ["rbxassetid://120748030255574"] = true,
+    ["rbxassetid://88287038085804"]  = true,
+    ["rbxassetid://115706752305794"] = true,
+    ["rbxassetid://82036084568393"]  = true,
+}
+
+----------------------------------------------------
+-- TARGET CHECK
+----------------------------------------------------
+local function getNearestSur()
+    local char = LP.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+
+    local best, dist = nil, math.huge
+
+    for _, m in ipairs(SurvivorsFolder:GetChildren()) do
+        local r = m:FindFirstChild("HumanoidRootPart")
+        local h = m:FindFirstChildWhichIsA("Humanoid")
+
+        if r and h and h.Health > 0 then
+            local d = (r.Position - root.Position).Magnitude
+            if d < dist and d <= getgenv().AimDistance then
+                dist = d
+                best = m
+            end
+        end
+    end
+
+    return best
+end
+
+local function targetUsingRageAnim(target)
+    local hum = target and target:FindFirstChildWhichIsA("Humanoid")
+    if not hum then return false end
+
+    local animator = hum:FindFirstChildWhichIsA("Animator")
+    if not animator then return false end
+
+    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+        if AntiM1Animations[track.Animation.AnimationId] then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function isUsingProtectedSkill(target)
+    if targetUsingRageAnim(target) then return true end
+
+    for skill in pairs(SkillSet) do
+        if target:FindFirstChild(skill) then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function getHum()
+    local char = LP.Character
+    return char and char:FindFirstChildWhichIsA("Humanoid")
+end
+
+local function updateAutoRotate(enabled)
+    local hum = getHum()
+    if hum then hum.AutoRotate = enabled end
+end
+
+----------------------------------------------------
+-- M1 FIRE
+----------------------------------------------------
+local LastM1 = 0
+local Cooldown = 0.1
+
+local function fireM1()
+    if tick() - LastM1 < Cooldown then return end
+    LastM1 = tick()
+    RemoteEvent:FireServer("UseActorAbility", {CurrentBuffer})
+end
+
+----------------------------------------------------
+-- LOOP (GIỮ NGUYÊN)
+----------------------------------------------------
+RunService.RenderStepped:Connect(function()
+    if not getgenv().AutoM1 then return end
+
+    if not isKiller() then
+        updateAutoRotate(true)
+        return
+    end
+
+    local char = LP.Character
+    local hum = getHum()
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+
+    if not hum or not root or hum.Health <= 0 then return end
+
+    local target = getNearestSur()
+    if not target then
+        updateAutoRotate(true)
+        return
+    end
+
+    if isUsingProtectedSkill(target) then
+        updateAutoRotate(true)
+        return
+    end
+
+    local tr = target:FindFirstChild("HumanoidRootPart")
+    if not tr then return end
+
+    if getgenv().FacingCheckEnabled and not isFacing(root, tr) then
+        updateAutoRotate(true)
+        return
+    end
+
+    fireM1()
+
+    if getgenv().AimEnabled then
+        local lookPos = Vector3.new(tr.Position.X, root.Position.Y, tr.Position.Z)
+        updateAutoRotate(false)
+        root.CFrame = root.CFrame:Lerp(CFrame.lookAt(root.Position, lookPos), 0.9)
+    else
+        updateAutoRotate(true)
+    end
+end)
+
+if LP.Character then updateBuffer() end
+
+----------------------------------------------------
+-- ✅ UI (COMBAT TAB)
+----------------------------------------------------
+Combat:CreateSection("Auto M1 Killer")
+Combat:CreateToggle({
+    Name = "Auto M1",
+    CurrentValue = false,
+    Callback = function(v)
+        getgenv().AutoM1 = v
+    end
+})
+
+Combat:CreateToggle({
+    Name = "Facing Check",
+    CurrentValue = true,
+    Callback = function(v)
+        getgenv().FacingCheckEnabled = v
+    end
+})
+
+Combat:CreateInput({
+    Name = "Rage",
+    PlaceholderText = "15",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(t)
+        local n = tonumber(t)
+        if n then
+            getgenv().AimDistance = math.clamp(n, 1, 50)
+        end
+    end
+})
+
+-- ========== PHẦN AUTO BLOCK (6 NÚT + DELAY THEO KILLER) ==========
+Combat:CreateSection("Auto Block")
+
+-- State variables
+local autoBlockEnabled = false
+local autoBlockMode = "Block"          -- "Block" hoặc "Clone"
+local facingCheckEnabled = true
+local autoPunchEnabled = false
+local autoAimEnabled = false
+local rage = 20                         -- khoảng cách phát hiện
+
+-- Cooldown
+local lastBlockTime = 0
+local lastPunchTime = 0
+local LOCAL_BLOCK_COOLDOWN = 0.7
+local LOCAL_PUNCH_COOLDOWN = 0.6
+local AIM_WINDOW = 0.5
+local AIM_COOLDOWN = 0.6
+
+-- Animation tracking
+local blockPrevPlaying = {}       -- animation block của kẻ địch frame trước
+local punchPrevPlaying = {}       -- animation punch của local frame trước
+local lastAimTrigger = {}         -- track lần cuối aim được kích hoạt
+
+-- Killer names và delay map (từ skid123)
+local killerNames = {"c00lkidd", "Jason", "JohnDoe", "1x1x1x1", "Noli", "Slasher", "Sixer", "Nosferatu"}
+local killerDelayMap = {
+    ["c00lkidd"] = 0,
+    ["jason"]    = 0.005,
+    ["slasher"]  = 0.005,
+    ["1x1x1x1"]  = 0.15,
+    ["johndoe"]  = 0.33,
+    ["noli"]     = 0.14,
+    ["nosferatu"] = 0.7,
+}
+
+-- Animation IDs từ skid123
+local autoBlockTriggerAnims = {
+    "105458270463374", "126830014841198", "129260077168659", "114375669802778",
+    "80208162053146", "135853087227453", "88451353906104", "116618003477002",
+    "83829782357897", "118298475669935", "74707328554358", "109667959938617",
+    "120112897026015", "125403313786645", "118298475669935", "94958041603347",
+    "130958529065375", "106860049270347", "124705663396411", "70948173568515",
+    "126355327951215", "82113744478546", "133336594357903", "126681776859538",
+    "81639435858902", "82113744478546", "126727756047566", "110702884830060",
+    "101736016625776", "109845134167647", "121086746534252", "113440898787986",
+    "118901677478609", "86204001129974", "81255669374177", "83446441317389",
+    "129976080405072", "140125695162370", "77154853064447", "93316899246221",
+    "137314737492715", "138390711856189", "121043188582126", "106847695270773",
+    "91758760621955", "114356208094580", "126896426760253", "135884061951801",
+    "139321362207112", "137642639873297", "132221505301108", "94634594529334",
+    "100358581940485", "86185540502966", "106538427162796", "77375846492436",
+    "93366464803829", "91509234639766", "86510482379594", "133990700986998",
+    "84895799077246", "84413781229733", "128414736976503", "133363345661032",
+    "139309647473555", "122709416391891", "88451353906104", "91628732643385",
+    "124269076578545", "124269076578545", "90620531468240", "71834552297085",
+    "110877859670130", "12222208", "10548112", "127324570265084", "105937652127383",
+    "102923788301986", "11998777", "105458270463374", "88970503168421",
+    "81299297965542", "93069721274110", "97167027849946", "118919403162061",
+    "131219306779772", "106776364623742", "127846074966393", "123345437821399",
+    "18885909645", "121080480916189", "131543461321709", "84069821282466",
+    "114126519127454", "70371667919898", "137679730950847"
+}
+
+local punchAnimIds = {
+    "87259391926321", "138040001965654", "136007065400978", "108911997126897",
+    "129843313690921", "81905101227053", "113936304594883", "140703210927645",
+    "86709774283672", "119850211147676", "108807732150251", "111270184603402",
+    "86096387000557", "99422325754526", "136007065400978", "82137285150006",
+    "129843313690921", "78440860685556", "87259391926321"
+}
+
+-- Helper functions
+local function fireRemoteBlock()
+    ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Network"):WaitForChild("RemoteEvent"):FireServer(
+        "UseActorAbility",
+        { [1] = buffer.fromstring("\3\5\0\0\0Block") }
+    )
+end
+
+local function fireRemoteClone()
+    ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Network"):WaitForChild("RemoteEvent"):FireServer(
+        "UseActorAbility",
+        { [1] = buffer.fromstring("\3\5\0\0\0Clone") }
+    )
+end
+
+local function fireRemotePunch()
+    ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Network"):WaitForChild("RemoteEvent"):FireServer(
+        "UseActorAbility",
+        { [1] = buffer.fromstring("\3\5\0\0\0Punch") }
+    )
+end
+
+-- Facing check (dot mặc định -0.3 như skid123)
+--local function isFacing(localRoot, targetRoot)
+    if not facingCheckEnabled then return true end
+    if not localRoot or not targetRoot then return false end
+
+    local toTarget = (targetRoot.Position - localRoot.Position).Unit
+    local forward = localRoot.CFrame.LookVector
+
+    return toTarget:Dot(forward) > FacingDot
+end
+
+-- Lấy HumanoidRootPart của local
+local function getLocalRoot()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+-- Lấy Humanoid của local
+local function getLocalHumanoid()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+-- Lấy danh sách người chơi khác
+local function getOtherPlayers()
+    local others = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then table.insert(others, plr) end
+    end
+    return others
+end
+
+-- Lấy killer gần nhất trong tầm rage (theo tên trong danh sách killerNames)
+local function getNearestKillerInRange()
+    local myRoot = getLocalRoot()
+    if not myRoot then return nil end
+    local nearest = nil
+    local minDist = math.huge
+    for _, plr in ipairs(getOtherPlayers()) do
+        local char = plr.Character
+        if char then
+            local isKiller = false
+            for _, name in ipairs(killerNames) do
+                if char.Name:lower():find(name:lower()) then
+                    isKiller = true
+                    break
+                end
+            end
+            if isKiller then
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local dist = (root.Position - myRoot.Position).Magnitude
+                    if dist < minDist and dist <= rage then
+                        minDist = dist
+                        nearest = root
+                    end
+                end
+            end
+        end
+    end
+    return nearest
+end
+
+-- Lấy delay dựa trên tên killer (từ model)
+local function getBlockDelayForKiller(killerModel)
+    if not killerModel then return 0 end
+    local name = killerModel.Name:lower()
+    return killerDelayMap[name] or 0
+end
+
+-- Lấy số charges từ nút Punch
+local function getPunchCharges()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return 0 end
+    local mainUI = playerGui:FindFirstChild("MainUI")
+    if not mainUI then return 0 end
+    local ability = mainUI:FindFirstChild("AbilityContainer")
+    if not ability then return 0 end
+    local punchBtn = ability:FindFirstChild("Punch")
+    if not punchBtn then return 0 end
+    local charges = punchBtn:FindFirstChild("Charges")
+    if not charges then return 0 end
+    local text = charges.Text
+    local num = tonumber(text)
+    return num or 0
+end
+
+-- UI Controls (6 nút)
+Combat:CreateToggle({
+    Name = "Auto Block",
+    CurrentValue = false,
+    Callback = function(v) autoBlockEnabled = v end
+})
+
+Combat:CreateDropdown({
+    Name = "Mode",
+    Options = {"Block", "Clone"},
+    CurrentOption = "Block",
+    Callback = function(opt)
+        autoBlockMode = typeof(opt) == "table" and opt[1] or opt
+    end
+})
+
+Combat:CreateInput({
+    Name = "Rage",
+    PlaceholderText = "20",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(t)
+        local n = tonumber(t)
+        if n then rage = n end
+    end
+})
+
+Combat:CreateToggle({
+    Name = "Facing Check",
+    CurrentValue = true,
+    Callback = function(v) facingCheckEnabled = v end
+    
+    local FacingDot = -0.3
+
+Combat:CreateInput({
+    Name = "Facing Dot",
+    PlaceholderText = "-0.3",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(Text)
+
+        if Text == "" then
+            FacingDot = -0.3
+            return
+        end
+
+        local num = tonumber(Text)
+        if num then
+            FacingDot = num
+        else
+            FacingDot = -0.3
+        end
+
+    end
+})
+
+Combat:CreateToggle({
+    Name = "Auto Punch",
+    CurrentValue = false,
+    Callback = function(v) autoPunchEnabled = v end
+})
+
+Combat:CreateToggle({
+    Name = "Punch Aim",
+    CurrentValue = false,
+    Callback = function(v) autoAimEnabled = v end
+})
+
+-- Main loop
+local autoBlockConnection = RunService.RenderStepped:Connect(function()
+    local myRoot = getLocalRoot()
+    if not myRoot then return end
+    local now = tick()
+    local myHum = getLocalHumanoid()
+
+    -- AUTO BLOCK (dựa trên animation của kẻ địch + delay theo killer)
+    if autoBlockEnabled then
+        local others = getOtherPlayers()
+        local currentBlockPlaying = {}
+
+        for _, plr in ipairs(others) do
+            local char = plr.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if hum and root then
+                    local dist = (root.Position - myRoot.Position).Magnitude
+                    if dist <= rage then
+                        local animator = hum:FindFirstChildOfClass("Animator")
+                        if animator then
+                            for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                                local animId = tostring(track.Animation and track.Animation.AnimationId or ""):match("%d+")
+                                if animId and table.find(autoBlockTriggerAnims, animId) then
+                                    currentBlockPlaying[animId] = true
+                                    if not blockPrevPlaying[animId] and isFacing(myRoot, root) then
+                                        -- Lấy delay dựa trên tên killer
+                                        local delay = getBlockDelayForKiller(char)
+                                        task.delay(delay, function()
+                                            if autoBlockEnabled and (tick() - lastBlockTime) > LOCAL_BLOCK_COOLDOWN then
+                                                if autoBlockMode == "Block" then
+                                                    fireRemoteBlock()
+                                                elseif autoBlockMode == "Clone" then
+                                                    fireRemoteClone()
+                                                end
+                                                lastBlockTime = tick()
+                                            end
+                                        end)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        blockPrevPlaying = currentBlockPlaying
+    else
+        blockPrevPlaying = {}
+    end
+
+    -- AUTO PUNCH (giống skid123: cần charges = 1 và có killer trong range <= 10)
+    if autoPunchEnabled and myHum then
+        local charges = getPunchCharges()
+        if charges >= 1 then
+            local targetRoot = getNearestKillerInRange()
+            if targetRoot and (targetRoot.Position - myRoot.Position).Magnitude <= math.min(rage, 10) then
+                if (now - lastPunchTime) > LOCAL_PUNCH_COOLDOWN then
+                    fireRemotePunch()
+                    lastPunchTime = now
+                end
+            end
+        end
+    end
+
+    -- PUNCH AIM (giống aimPunch trong skid123, dùng predictionValue = 4 mặc định)
+    if autoAimEnabled and myHum then
+        local animator = myHum:FindFirstChildOfClass("Animator")
+        if animator then
+            local tracks = animator:GetPlayingAnimationTracks()
+            for _, track in ipairs(tracks) do
+                local animId = tostring(track.Animation and track.Animation.AnimationId or ""):match("%d+")
+                if animId and table.find(punchAnimIds, animId) then
+                    local last = lastAimTrigger[track]
+                    if not last or (now - last) > AIM_COOLDOWN then
+                        local timePos = 0
+                        pcall(function() timePos = track.TimePosition end)
+                        if timePos <= 0.1 then
+                            lastAimTrigger[track] = now
+                            local targetRoot = getNearestKillerInRange()
+                            if targetRoot then
+                                -- Tính vị trí dự đoán (lookVector * 4)
+                                local predictedPos = targetRoot.Position + (targetRoot.CFrame.LookVector * 4)
+                                -- Aim trong AIM_WINDOW (0.5s)
+                                task.spawn(function()
+                                    local start = now
+                                    while tick() - start < AIM_WINDOW do
+                                        if myRoot and myRoot.Parent and targetRoot and targetRoot.Parent then
+                                            local lookPos = Vector3.new(predictedPos.X, myRoot.Position.Y, predictedPos.Z)
+                                            myRoot.CFrame = myRoot.CFrame:Lerp(CFrame.lookAt(myRoot.Position, lookPos), 0.7)
+                                        end
+                                        task.wait()
+                                    end
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- Reset trạng thái khi nhân vật hồi sinh
+LocalPlayer.CharacterAdded:Connect(function()
+    punchPrevPlaying = {}
+    blockPrevPlaying = {}
+    lastAimTrigger = {}
+    lastBlockTime = 0
+    lastPunchTime = 0
+end)
+-- ========== KẾT THÚC PHẦN AUTO BLOCK ==========
+----------------------------------------------------
+-- ✅ AUTO PARRY SECTION
+----------------------------------------------------
+Combat:CreateSection("Auto Parry")
+
+-- SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LP = Players.LocalPlayer
+
+-- VARIABLES (GIỮ NGUYÊN)
+local AUTO = false
+local RAGE_DISTANCE = 19
+local COOLDOWN = 5
+local SPAM_TIME = 3
+local cooldowns = {}
+
+local RemoteEvent = ReplicatedStorage.Modules.Network.RemoteEvent
+
+local BUF_404 = buffer.fromstring("\3\8\0\0\0" .. "404Error")
+local BUF_RAGE = buffer.fromstring("\3\10\0\0\0RagingPace")
+
+----------------------------------------------------
+-- ✅ UI (Rayfield)
+----------------------------------------------------
+Combat:CreateToggle({
+    Name = "Auto Parry",
+    CurrentValue = false,
+    Callback = function(v)
+        AUTO = v
+    end
+})
+
+Combat:CreateInput({
+    Name = "Rage",
+    CurrentValue = tostring(RAGE_DISTANCE),
+    PlaceholderText = "RAGE",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(txt)
+        local v = tonumber(txt)
+        if v then
+            RAGE_DISTANCE = math.clamp(v, 5, 50)
+        end
+    end
+})
+
+----------------------------------------------------
+-- LOGIC (KHÔNG ĐỔI)
+----------------------------------------------------
+local function fireSkill(buf)
+    RemoteEvent:FireServer("UseActorAbility", { buf })
+end
+
+local animsToDetect = {
+    ["87259391926321"] = true,
+    ["138040001965654"] = true,
+    ["136007065400978"] = true,
+    ["108911997126897"] = true,
+    ["129843313690921"] = true,
+    ["81905101227053"] = true,
+    ["113936304594883"] = true,
+    ["140703210927645"] = true,
+    ["86709774283672"] = true,
+    ["119850211147676"] = true,
+    ["108807732150251"] = true,
+    ["111270184603402"] = true,
+    ["86096387000557"] = true,
+    ["99422325754526"] = true,
+    ["82137285150006"] = true,
+    ["78440860685556"] = true,
+    ["138008678294576"] = true,
+    ["108137703081583"] = true,
+    ["111351142668768"] = true,
+    ["97020933136241"] = true,
+    ["80109359274646"] = true,
+    ["91876712939436"] = true,
+    ["80872238342472"] = true,
+    ["129228295705213"] = true,
+    ["118647044497447"] = true,
+    ["116618003477002"] = true,
+    ["122503338277352"] = true,
+    ["131696603025265"] = true,
+    ["119462383658044"] = true,
+    ["77448521277146"] = true,
+    ["108773914369470"] = true,
+    ["98031287364865"] = true,
+    ["121255898612475"] = true,
+    ["110400453990786"] = true,
+    ["105614318732282"] = true,
+}
+
+local function isAnimMatch(track)
+    local id = tostring(track.Animation.AnimationId):match("%d+")
+    return id and animsToDetect[id]
+end
+
+----------------------------------------------------
+-- MAIN LOOP
+----------------------------------------------------
+RunService.Heartbeat:Connect(function()
+    if not AUTO then return end
+
+    local myChar = LP.Character
+    local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return end
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+
+            local hrp = plr.Character.HumanoidRootPart
+            local dist = (hrp.Position - myHRP.Position).Magnitude
+
+            if dist <= RAGE_DISTANCE and (not cooldowns[plr] or tick() - cooldowns[plr] >= COOLDOWN) then
+
+                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
+
+                        if isAnimMatch(track) then
+                            cooldowns[plr] = tick()
+
+                            task.spawn(function()
+                                fireSkill(BUF_RAGE)
+                                task.wait(0.15)
+
+                                local t = tick()
+                                while tick() - t < SPAM_TIME do
+                                    fireSkill(BUF_404)
+                                    task.wait(0.05)
+                                end
+                            end)
+
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+end) 
+----------------------------------------------------
+-- ✅ QTE NOSFERATU
+----------------------------------------------------
+Combat:CreateSection("QTE Nosferatu")
+
+local player = game.Players.LocalPlayer
+
+local autoQTE = false
+local qteDelay = 0.05
+
+----------------------------------------------------
+-- UI
+----------------------------------------------------
+Combat:CreateToggle({
+    Name = "Auto QTE(Mobile)",
+    CurrentValue = false,
+    Callback = function(v)
+        autoQTE = v
+    end
+})
+
+Combat:CreateInput({
+    Name = "QTE Delay",
+    CurrentValue = tostring(qteDelay),
+    PlaceholderText = "Delay (0 - 10)",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(txt)
+        local newDelay = tonumber(txt)
+        if newDelay and newDelay >= 0 and newDelay <= 10 then
+            qteDelay = newDelay
+        end
+    end
+})
+
+----------------------------------------------------
+-- LOGIC (GIỮ NGUYÊN)
+----------------------------------------------------
+local function runAutoLoop()
+    task.spawn(function()
+        while autoQTE do
+            pcall(function()
+                local tempUI = player.PlayerGui:FindFirstChild("TemporaryUI")
+                if not tempUI then return end
+                
+                local qte = tempUI:FindFirstChild("QTE")
+                if not qte then return end
+                
+                local btn = qte:FindFirstChild("ActiveButton")
+                if not btn then return end
+                
+                for _, conn in ipairs(getconnections(btn.MouseButton1Down)) do
+                    pcall(conn.Function)
+                end
+            end)
+
+            task.wait(qteDelay)
+        end
+    end)
+end
+
+----------------------------------------------------
+-- AUTO START LOOP
+----------------------------------------------------
+task.spawn(function()
+    while task.wait(0.3) do
+        if autoQTE then
+            runAutoLoop()
+            repeat task.wait() until not autoQTE
+        end
+    end
+end)
+
+----------------------------------------------------
+-- ✅ SUPPORT TAB
+----------------------------------------------------
+Support:CreateSection("Support")
+
+Support:CreateParagraph({
+    Title = "Discord",
+    Content = "join my disc server to report bugs"
+})
+
+Support:CreateButton({
+    Name = "Join Server Discord",
+    Callback = function()
+        setclipboard("https://discord.gg/jtxyfUyJQY")
+    end
+})
+
+Support:CreateParagraph({
+    Title = "YouTube",
+    Content = "Subscribe my Yt plss🥺"
+})
+
+Support:CreateButton({
+    Name = "Link Yt",
+    Callback = function()
+        setclipboard("https://www.youtube.com/@Wscript1955")
+    end
+})
+Support:CreateButton({
+    Name = "Save Now",
+    Callback = function()
+        Rayfield:SaveConfiguration()
+    end,
+})
+-- =========================
+-- Variables
+-- =========================
+local aimEnabled = false
+local aimMode = "One Player"
+local predictMovement = false
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local LocalPlayer = Players.LocalPlayer
+local SurvivorsFolder = workspace:WaitForChild("Players"):WaitForChild("Survivors")
+
+local killerModels = {
+    ["1x1x1x1"] = true
+}
+
+-- =========================
+-- Animation Check IDs
+-- =========================
+local dangerousAnimations = {
+
+    -- Base
+    ["119181003138006"] = true, -- Entanglement
+    ["99050723653468"]  = true, -- MassInfection
+
+    -- Timeless / Lancer / AceOfSpades / Fleskhjerta / Toy
+    ["100592913030351"] = true,
+    ["81935774508746"]  = true,
+
+    -- BoomerFormula
+    ["116814116277716"] = true,
+    ["86799093901669"]  = true,
+
+    -- Hacklord
+    ["83685305553364"]  = true,
+    ["99030950661794"]  = true,
+
+    -- Special / Milestone skins
+    ["101101433684051"] = true,
+    ["116787687605496"] = true,
+
+    -- Martyr
+    ["109777684604906"] = true,
+    ["105026134432828"] = true,
+
+    -- Abyss
+    ["91237398850193"]  = true,
+    ["104897856211468"] = true,
+
+    -- Doctor
+    ["112598064360414"] = true,
+}
+
+-- =========================
+-- Helper Functions
+-- =========================
+local function getHumanoid()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChildWhichIsA("Humanoid")
+end
+
+local function getRoot()
+    local char = LocalPlayer.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function isKiller()
+    local char = LocalPlayer.Character
+    return char and killerModels[char.Name] or false
+end
+
+local function isPlayingDangerousAnimation()
+    local humanoid = getHumanoid()
+    if not humanoid then return false end
+
+    local animator = humanoid:FindFirstChildOfClass("Animator")
+    if not animator then return false end
+
+    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+        local animId = tostring(track.Animation.AnimationId):match("%d+")
+        if animId and dangerousAnimations[animId] then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function getClosestSurvivor()
+    local myRoot = getRoot()
+    if not myRoot then return nil end
+
+    local closest, dist = nil, math.huge
+
+    for _, model in ipairs(SurvivorsFolder:GetChildren()) do
+        if model:IsA("Model") then
+            local hrp = model:FindFirstChild("HumanoidRootPart")
+            local hum = model:FindFirstChildWhichIsA("Humanoid")
+
+            if hrp and hum and hum.Health > 0 then
+                local mag = (hrp.Position - myRoot.Position).Magnitude
+                if mag < dist then
+                    closest = model
+                    dist = mag
+                end
+            end
+        end
+    end
+
+    return closest
+end
+
+-- =========================
+-- Aim Logic
+-- =========================
+local autoRotateDisabled = false
+local currentTarget = nil
+local wasPlaying = false
+
+RunService.RenderStepped:Connect(function()
+    if not aimEnabled then
+        local hum = getHumanoid()
+        if hum and autoRotateDisabled then
+            hum.AutoRotate = true
+            autoRotateDisabled = false
+        end
+        currentTarget = nil
+        wasPlaying = false
+        return
+    end
+
+    if not isKiller() then return end
+
+    local humanoid = getHumanoid()
+    local root = getRoot()
+    if not humanoid or not root then return end
+
+    local isPlaying = isPlayingDangerousAnimation()
+
+    if isPlaying and not currentTarget then
+        currentTarget = getClosestSurvivor()
+    end
+
+    if (not isPlaying) and wasPlaying then
+        currentTarget = nil
+        if humanoid and autoRotateDisabled then
+            humanoid.AutoRotate = true
+            autoRotateDisabled = false
+        end
+    end
+    wasPlaying = isPlaying
+
+    if currentTarget and isPlaying then
+        local hrp = currentTarget:FindFirstChild("HumanoidRootPart")
+        local hum = currentTarget:FindFirstChildWhichIsA("Humanoid")
+
+        if not hrp or not hum or hum.Health <= 0 then
+            currentTarget = nil
+            return
+        end
+
+        if not autoRotateDisabled then
+            humanoid.AutoRotate = false
+            autoRotateDisabled = true
+        end
+
+        local targetPos = hrp.Position
+
+        if predictMovement then
+            local vel = hrp.Velocity
+            if vel.Magnitude > 2 then
+                targetPos = targetPos + hrp.CFrame.LookVector * 3
+            end
+        end
+
+        local lookAt = Vector3.new(targetPos.X, root.Position.Y, targetPos.Z)
+
+        if aimMode == "One Player" then
+            root.CFrame = root.CFrame:Lerp(
+                CFrame.lookAt(root.Position, lookAt),
+                0.99
+            )
+
+        elseif aimMode == "Multi Players" then
+            currentTarget = getClosestSurvivor()
+            root.CFrame = root.CFrame:Lerp(
+                CFrame.lookAt(root.Position, lookAt),
+                0.99
+            )
+        end
+    end
+end)
+
+-- =========================
+-- Rayfield UI (Combat Tab)
+-- =========================
+Combat:CreateSection("1x1x1x1 Aim")
+
+Combat:CreateToggle({
+    Name = "Aim",
+    CurrentValue = false,
+    Flag = "1x1x1x1_AimToggle",
+    Callback = function(Value)
+        aimEnabled = Value
+    end,
+})
+
+Combat:CreateDropdown({
+    Name = "Mode",
+    Options = {"One Player", "Multi Players"},
+    CurrentOption = "One Player",
+    Flag = "1x1x1x1_AimMode",
+    Callback = function(Value)
+        aimMode = Value
+    end,
+})
+
+Combat:CreateToggle({
+    Name = "Predict Movement",
+    CurrentValue = false,
+    Flag = "1x1x1x1_PredictMove",
+    Callback = function(Value)
+        predictMovement = Value
+    end,
+})
+
+local Main = Window:CreateTab("Main")
+-- ===== Sprint Module =====
+local sprintModule = require(game.ReplicatedStorage.Systems.Character.Game.Sprinting)
+
+-- ===== Default Values =====
+local defaultMaxStamina = sprintModule.MaxStamina
+local defaultSprintSpeed = sprintModule.SprintSpeed
+local defaultStaminaGain = sprintModule.StaminaGain
+local defaultStaminaDrain = sprintModule.StaminaDrain or 1
+local defaultRegenDelay = sprintModule.StaminaRegenDelay or 0.5
+
+-- ===== Current Values =====
+local maxStaminaValue = defaultMaxStamina
+local sprintSpeedValue = defaultSprintSpeed
+local staminaGainValue = defaultStaminaGain
+local staminaDrainValue = defaultStaminaDrain
+local regenDelayValue = defaultRegenDelay
+
+-- ===== Infinity Stamina =====
+local infinityStamina = false
+local staminaLoop = nil
+
+local function EnableInfinity()
+    infinityStamina = true
+
+    staminaLoop = task.spawn(function()
+        while infinityStamina do
+            task.wait(0.01)
+
+            sprintModule.MaxStamina = maxStaminaValue
+            sprintModule.SprintSpeed = sprintSpeedValue
+            sprintModule.StaminaGain = staminaGainValue
+            sprintModule.StaminaDrain = staminaDrainValue
+            sprintModule.StaminaRegenDelay = regenDelayValue
+
+            sprintModule.Stamina = sprintModule.MaxStamina
+        end
+    end)
+end
+
+local function DisableInfinity()
+    infinityStamina = false
+
+    if staminaLoop then
+        task.cancel(staminaLoop)
+        staminaLoop = nil
+    end
+end
+
+-- ===== Reset =====
+local function ResetStamina()
+
+    maxStaminaValue = defaultMaxStamina
+    sprintSpeedValue = defaultSprintSpeed
+    staminaGainValue = defaultStaminaGain
+    staminaDrainValue = defaultStaminaDrain
+    regenDelayValue = defaultRegenDelay
+
+    sprintModule.MaxStamina = defaultMaxStamina
+    sprintModule.SprintSpeed = defaultSprintSpeed
+    sprintModule.StaminaGain = defaultStaminaGain
+    sprintModule.StaminaDrain = defaultStaminaDrain
+    sprintModule.StaminaRegenDelay = defaultRegenDelay
+
+end
+
+-- ===== GUI =====
+
+Main:CreateSection("Stamina Settings")
+
+Main:CreateToggle({
+    Name = "Infinity Stamina",
+    CurrentValue = false,
+    Callback = function(Value)
+
+        if Value then
+            EnableInfinity()
+        else
+            DisableInfinity()
+        end
+
+    end
+})
+
+Main:CreateSlider({
+    Name = "Max Stamina",
+    Range = {1,500},
+    Increment = 1,
+    CurrentValue = maxStaminaValue,
+
+    Callback = function(Value)
+        maxStaminaValue = Value
+        sprintModule.MaxStamina = Value
+    end
+})
+
+Main:CreateSlider({
+    Name = "Sprint Speed",
+    Range = {1,40},
+    Increment = 1,
+    CurrentValue = sprintSpeedValue,
+
+    Callback = function(Value)
+        sprintSpeedValue = Value
+        sprintModule.SprintSpeed = Value
+    end
+})
+
+Main:CreateSlider({
+    Name = "Stamina Gain",
+    Range = {1,500},
+    Increment = 1,
+    CurrentValue = staminaGainValue,
+
+    Callback = function(Value)
+        staminaGainValue = Value
+        sprintModule.StaminaGain = Value
+    end
+})
+
+Main:CreateSlider({
+    Name = "Stamina Drain",
+    Range = {0,100},
+    Increment = 1,
+    CurrentValue = staminaDrainValue,
+
+    Callback = function(Value)
+        staminaDrainValue = Value
+        sprintModule.StaminaDrain = Value
+    end
+})
+
+Main:CreateSlider({
+    Name = "Regen Delay",
+    Range = {0,5},
+    Increment = 0.1,
+    CurrentValue = regenDelayValue,
+
+    Callback = function(Value)
+        regenDelayValue = Value
+        sprintModule.StaminaRegenDelay = Value
+    end
+})
+
+Main:CreateButton({
+    Name = "Reset Stamina",
+    Callback = function()
+        ResetStamina()
+    end
+})
