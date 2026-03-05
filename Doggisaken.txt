@@ -6,10 +6,8 @@ local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 
--- ===== Rayfield =====
-local WindUI =
-loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/
-download/main.lua"))()
+-- ===== WindUI =====
+local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 
 local Window = WindUI:CreateWindow({
    Name = "DoggiSaken",
@@ -17,13 +15,8 @@ local Window = WindUI:CreateWindow({
    LoadingSubtitle = "mTy stupid",
    ToggleUIKeybind = "K",
    KeySystem = false,
-   ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "mTy", -- tên folder
-        FileName = "DoggiSaken"  -- tên file
     }
 })
-
 local Main = Window:CreateTab("Main")
 local ESPTab = Window:CreateTab("ESP")
 local Combat = Window:CreateTab("Combat")
